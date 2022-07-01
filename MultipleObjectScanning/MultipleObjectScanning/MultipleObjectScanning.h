@@ -74,6 +74,7 @@ void transformPointCloudToOriginal(pcl::PointCloud<pcl::PointXYZ>::Ptr& inCloud,
 void readCameraMatrix(std::string infoYMLFilePath, std::vector<float>& infoMatrix, std::string obj_name);
 void configBoundingBox(std::string gtFilePath, std::vector<double>& boundingBoxVec, std::string obj_name, int className);
 void removeLeadingZeros(std::string& str);
+void cropImageHorizontalYOLOFormat(cv::Mat& originalDepthImage, cv::Mat& cropDepthImage, std::string boundingBoxPath, int width, int height);
 /*--------------MAIN PROCESSING FUNCTION----------------*/
 void datasetGeneration();
 void detectMultipleObjects();
