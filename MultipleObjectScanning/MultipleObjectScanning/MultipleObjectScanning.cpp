@@ -10,30 +10,6 @@ void eraseSubStrings(std::string& mainString, std::string& toErase)
 	}
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloud(cv::Mat depth_img, const double depth_intrinsic[4])
-{
-	const double fx = depth_intrinsic[0];
-	const double fy = depth_intrinsic[1];
-	const double cx = depth_intrinsic[2];
-	const double cy = depth_intrinsic[3];
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	for (int x = 0; x < depth_img.rows; x++) {
-		for (int y = 0; y < depth_img.cols; y++) {
-			pcl::PointXYZ p;
-
-			double depth_val = depth_img.ptr<ushort>(x)[y];
-			if (depth_val == 0) { continue; }
-			p.z = depth_val;
-			p.x = (y - cx) * p.z / fx;
-			p.y = (x - cy) * p.z / fy;
-			cloud->points.push_back(p);
-
-		}
-	}
-	return cloud;
-}
-
 bool checkSubString(std::string mainString, std::string checkString)
 {
 	if (strstr(mainString.c_str(), checkString.c_str()))
@@ -67,132 +43,26 @@ void extractBoundingBoxFromMaskImage(cv::Mat mask_img, double& bbX, double& bbY,
 	bbHeight = (y_max - y_min) / mask_img.size().height;
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat depth_img, const double depth_intrinsic[4])
+pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat depth_img, double depth_intrinsic[4])
 {
-	const double fx = depth_intrinsic[0];
-	const double fy = depth_intrinsic[1];
-	const double cx = depth_intrinsic[2];
-	const double cy = depth_intrinsic[3];
+	double fx = depth_intrinsic[0];
+	double fy = depth_intrinsic[1];
+	double cx = depth_intrinsic[2];
+	double cy = depth_intrinsic[3];
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	for (int x = 0; x < depth_img.rows; x++) {
 		for (int y = 0; y < depth_img.cols; y++) {
 			pcl::PointXYZ p;
-
-			double depth_val = depth_img.ptr<ushort>(x)[y];
+			ushort depth_val = depth_img.ptr<ushort>(x)[y];
 			if (depth_val == 0) { continue; }
 			p.z = depth_val;
-			p.x = (y - cx) * p.z / fx;
-			p.y = (x - cy) * p.z / fy;
+			p.x = (y - cx) * p.z / fx * 0.1;
+			p.y = (x - cy) * p.z / fy * 0.1;
 			cloud->points.push_back(p);
 		}
 	}
 	return cloud;
-}
-
-void cropAndCreatePointCloud(std::string boundingBoxPath, std::string depthPath, std::string outputPath)
-{
-	std::ifstream inputfile(boundingBoxPath);
-	double boundingBoxArr[2][5];
-	if (!inputfile.is_open())
-	{
-		std::cout << "Error opening file";
-	}
-	for (int r = 0; r < 2; r++)
-	{
-		for (int c = 0; c < 5; c++)
-		{
-			inputfile >> boundingBoxArr[r][c];
-		}
-	}
-
-	std::string checkVerticalOrHorizontal = boundingBoxPath.substr(boundingBoxPath.find(".") - 1);
-
-	if (checkVerticalOrHorizontal == "v.txt")
-	{
-		boundingBoxArr[0][1] *= 1280;
-		boundingBoxArr[0][2] *= 2048;
-		boundingBoxArr[0][3] *= 1280;
-		boundingBoxArr[0][4] *= 2048;
-
-		boundingBoxArr[0][1] = boundingBoxArr[0][1] - boundingBoxArr[0][3] / 2;
-		boundingBoxArr[0][2] = boundingBoxArr[0][2] - boundingBoxArr[0][4] / 2;
-		boundingBoxArr[0][3] = boundingBoxArr[0][1] + boundingBoxArr[0][3];
-		boundingBoxArr[0][4] = boundingBoxArr[0][2] + boundingBoxArr[0][4];
-
-		boundingBoxArr[0][1] = (boundingBoxArr[0][1] / 1280 * 640) + 10;
-		boundingBoxArr[0][2] = boundingBoxArr[0][2] / 2048 * 960;
-		boundingBoxArr[0][3] = boundingBoxArr[0][3] / 1280 * 640;
-		boundingBoxArr[0][4] = boundingBoxArr[0][4] / 2048 * 960;
-
-		boundingBoxArr[1][1] *= 1280;
-		boundingBoxArr[1][2] *= 2048;
-		boundingBoxArr[1][3] *= 1280;
-		boundingBoxArr[1][4] *= 2048;
-
-		boundingBoxArr[1][1] = boundingBoxArr[1][1] - boundingBoxArr[1][3] / 2;
-		boundingBoxArr[1][2] = boundingBoxArr[1][2] - boundingBoxArr[1][4] / 2;
-		boundingBoxArr[1][3] = boundingBoxArr[1][1] + boundingBoxArr[1][3];
-		boundingBoxArr[1][4] = boundingBoxArr[1][2] + boundingBoxArr[1][4];
-
-		boundingBoxArr[1][1] = boundingBoxArr[1][1] / 1280 * 640;
-		boundingBoxArr[1][2] = boundingBoxArr[1][2] / 2048 * 960;
-		boundingBoxArr[1][3] = boundingBoxArr[1][3] / 1280 * 640;
-		boundingBoxArr[1][4] = boundingBoxArr[1][4] / 2048 * 960;
-
-		cv::Mat croppedImg1, croppedImg2;
-		cv::Mat depth_frame = cv::imread(depthPath, cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
-		depth_frame(cv::Rect(boundingBoxArr[0][1] + 10, boundingBoxArr[0][2],
-			(boundingBoxArr[0][3] - boundingBoxArr[0][1]) + 10, (boundingBoxArr[0][4] - boundingBoxArr[0][2]) + 10)).copyTo(croppedImg1);
-
-		depth_frame(cv::Rect(boundingBoxArr[1][1] + 10, boundingBoxArr[1][2],
-			(boundingBoxArr[1][3] - boundingBoxArr[1][1]) + 10, (boundingBoxArr[1][4] - boundingBoxArr[1][2]) + 10)).copyTo(croppedImg2);
-
-		if (boundingBoxArr[0][0] == 0)
-		{
-
-		}
-	}
-	else
-	{
-		boundingBoxArr[0][1] *= 2560;
-		boundingBoxArr[0][2] *= 1024;
-		boundingBoxArr[0][3] *= 2560;
-		boundingBoxArr[0][4] *= 1024;
-
-		boundingBoxArr[0][1] = boundingBoxArr[0][1] - boundingBoxArr[0][3] / 2;
-		boundingBoxArr[0][2] = boundingBoxArr[0][2] - boundingBoxArr[0][4] / 2;
-		boundingBoxArr[0][3] = boundingBoxArr[0][1] + boundingBoxArr[0][3];
-		boundingBoxArr[0][4] = boundingBoxArr[0][2] + boundingBoxArr[0][4];
-
-		boundingBoxArr[0][1] = boundingBoxArr[0][1] / 2560 * 1280;
-		boundingBoxArr[0][2] = boundingBoxArr[0][2] / 1024 * 480;
-		boundingBoxArr[0][3] = boundingBoxArr[0][3] / 2560 * 1280;
-		boundingBoxArr[0][4] = boundingBoxArr[0][4] / 1024 * 480;
-
-
-		boundingBoxArr[1][1] *= 2560;
-		boundingBoxArr[1][2] *= 1024;
-		boundingBoxArr[1][3] *= 2560;
-		boundingBoxArr[1][4] *= 1024;
-
-		boundingBoxArr[1][1] = boundingBoxArr[1][1] - boundingBoxArr[1][3] / 2;
-		boundingBoxArr[1][2] = boundingBoxArr[1][2] - boundingBoxArr[1][4] / 2;
-		boundingBoxArr[1][3] = boundingBoxArr[1][1] + boundingBoxArr[1][3];
-		boundingBoxArr[1][4] = boundingBoxArr[1][2] + boundingBoxArr[1][4];
-
-
-		boundingBoxArr[1][1] = boundingBoxArr[1][1] / 2560 * 1280;
-		boundingBoxArr[1][2] = boundingBoxArr[1][2] / 1024 * 480;
-		boundingBoxArr[1][3] = boundingBoxArr[1][3] / 2560 * 1280;
-		boundingBoxArr[1][4] = boundingBoxArr[1][4] / 1024 * 480;
-
-		cv::Mat croppedImg;
-		cv::Mat depth_frame = cv::imread(depthPath, cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
-		depth_frame(cv::Rect(boundingBoxArr[0][1], boundingBoxArr[0][2], boundingBoxArr[0][3], boundingBoxArr[0][4])).copyTo(croppedImg);
-		cv::imwrite(boundingBoxPath + ".png", croppedImg);
-		std::cout << "Save " + boundingBoxPath + ".png" << std::endl;
-	}
 }
 
 pcl::PointCloud<pcl::PointXYZ> convertEigenMatrixXdToPCLCloud(const Eigen::MatrixXd& inputMatrix)
@@ -290,52 +160,6 @@ void removeLeadingZeros(std::string& str)
 	const std::regex pattern("^0+(?!$)");
 	str = regex_replace(str, pattern, "");
 }
-
-void cropImageHorizontalYOLOFormat(cv::Mat& originalDepthImage, std::string boundingBoxPath, int width, int height)
-{
-	cv::Mat cropDepthImage;
-	std::ifstream inputBoundingBox(boundingBoxPath);
-	double boundingBoxArr[2][5];
-	if (!inputBoundingBox.is_open())
-	{
-		std::cout << "Error opening file" << std::endl;
-	}
-	else
-	{
-		for (std::size_t r = 0; r < 2; r++)
-		{
-			for (std::size_t c = 0; c < 5; c++)
-			{
-				inputBoundingBox >> boundingBoxArr[r][c];
-			}
-		}
-	}
-
-	for (std::size_t r = 0; r < 2; r++)
-	{
-		boundingBoxArr[r][1] *= width;
-		boundingBoxArr[r][2] *= height;
-		boundingBoxArr[r][3] *= width;
-		boundingBoxArr[r][4] *= height;
-
-		boundingBoxArr[r][1] = boundingBoxArr[r][1] - boundingBoxArr[r][3] / 2;
-		boundingBoxArr[r][2] = boundingBoxArr[r][2] - boundingBoxArr[r][4] / 2;
-		boundingBoxArr[r][3] = boundingBoxArr[r][1] + boundingBoxArr[r][3];
-		boundingBoxArr[r][4] = boundingBoxArr[r][2] + boundingBoxArr[r][4];
-
-		if (boundingBoxArr[r][0] == 0)
-		{
-			originalDepthImage(cv::Rect(boundingBoxArr[r][1], boundingBoxArr[r][2], boundingBoxArr[r][3] - boundingBoxArr[r][1], boundingBoxArr[r][4] - boundingBoxArr[r][2])).copyTo(cropDepthImage);
-			cv::imwrite("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/cutPointCloudOfDetectObjects/Outputs", cropDepthImage);
-			std::cout << "Done" << std::endl;
-		}
-		else if (boundingBoxArr[r][0] == 1)
-		{
-
-		}
-	}
-}
-
 /*--------------MAIN PROCESSING FUNCTION----------------*/
 void datasetGeneration()
 {
@@ -353,15 +177,6 @@ void datasetGeneration()
 
 	std::cout << "datasetGeneration:: Execution" << std::endl;
 	std::cout << "datasetGeneration:: Execution: Extract bounding box" << std::endl;
-	/*std::vector<double>infoMatrix;
-	std::string obj_name = "0";
-	readCameraMatrix(obj_29_inputFolder + "/info.yml", infoMatrix, obj_name);
-	
-	for (auto i : infoMatrix)
-	{
-		std::cout << i << " ";
-
-	}*/
 
 	std::cout << "datasetGeneration:: Execution: Extract bounding box: Class 0" << std::endl;
 
@@ -425,7 +240,7 @@ void detectMultipleObjects()
 
 	cv::glob(obj_0_inputFolder, obj_0_inputFileNames);
 	cv::glob(obj_1_inputFolder, obj_1_inputFileNames);
-	
+
 	std::sort(obj_0_inputFileNames.begin(), obj_0_inputFileNames.end(), naturalSorting);
 	std::sort(obj_1_inputFileNames.begin(), obj_1_inputFileNames.end(), naturalSorting);
 
@@ -466,105 +281,339 @@ void cutPointCloudOfDetectObjects()
 	std::string outputFolder = "D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/cutPointCloudOfDetectObjects/Outputs";
 	std::string debugFolder = "D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/cutPointCloudOfDetectObjects/Debugs";
 
-	std::string labelsFolder = inputFolder + "/labels/*.txt";
-	std::string imagesFolder = inputFolder + "/rgb_images/*.jpg";
-	std::string obj_0_depth = inputFolder + "/depth_images/0";
-	std::string obj_1_depth = inputFolder + "/depth_images/1";
-	std::string depthFolder = inputFolder + "/depth/*.png";
+	std::string obj_0_depth = inputFolder + "/obj_0_depth/";
+	std::string obj_1_depth = inputFolder + "/obj_1_depth/";
+
+	std::string obj_0_rgb = inputFolder + "/obj_0_rgb/";
+	std::string obj_1_rgb = inputFolder + "/obj_1_rgb/";
 
 	std::string info_obj_0 = inputFolder + "/obj_0_info/info.yml";
 	std::string gt_obj_0 = inputFolder + "/obj_0_info/gt.yml";
-	
+
 	std::string info_obj_1 = inputFolder + "/obj_1_info/info.yml";
 	std::string gt_obj_1 = inputFolder + "/obj_1_info/gt.yml";
 
-	std::vector<std::string> labelsFileNames;
-	std::vector<std::string> imagesFileNames;
-	std::vector<std::string> depthFileNames;
+	std::string boundingBox = inputFolder + "/boundingBox/";
+	std::string mergeDepthImage = inputFolder + "/mergeDepthImage/";
 
-	std::size_t index = 0;
+	std::string obj_0_depth_output = outputFolder + "/cropDepthImage/0";
+	std::string obj_1_depth_output = outputFolder + "/cropDepthImage/1";
+
+	std::vector<std::string> obj_0_depthFileNames;
+	std::vector<std::string> obj_1_depthFileNames;
+
+	std::vector<std::string> obj_0_rgbFileNames;
+	std::vector<std::string> obj_1_rgbFileNames;
+
+	std::vector<std::string> boundingBoxFileNames;
+	std::vector<std::string> mergeDepthImageFileNames;
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr obj_0_merge_h(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr obj_0_merge_v(new pcl::PointCloud<pcl::PointXYZ>);
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr obj_1_merge_h(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr obj_1_merge_v(new pcl::PointCloud<pcl::PointXYZ>);
+
 	std::string toEraseTXT = ".txt";
 	std::string toErasePNG = ".png";
 
-	int CONCATE_DEPTH_IMAGE_FLAG = false;
-
+	bool CONCATE_DEPTH_IMAGE_FLAG = false;
 	if (CONCATE_DEPTH_IMAGE_FLAG == true)
 	{
 		std::cout << "cutPointCloudOfDetectObjects:: Execution" << std::endl;
 		std::cout << "cutPointCloudOfDetectObjects:: Execution: Concatenate depth images" << std::endl;
+		std::size_t index = 0;
 
-		cv::glob(labelsFolder, labelsFileNames);
+		cv::glob(obj_0_depth, obj_0_depthFileNames);
+		cv::glob(obj_1_depth, obj_1_depthFileNames);
 
-		std::sort(labelsFileNames.begin(), labelsFileNames.end(), naturalSorting);
+		cv::glob(obj_0_rgb, obj_0_rgbFileNames);
+		cv::glob(obj_1_rgb, obj_1_rgbFileNames);
 
-		for (auto const& f : labelsFileNames)
+		std::sort(obj_0_depthFileNames.begin(), obj_0_depthFileNames.end(), naturalSorting);
+		std::sort(obj_1_depthFileNames.begin(), obj_1_depthFileNames.end(), naturalSorting);
+
+		std::sort(obj_0_rgbFileNames.begin(), obj_0_rgbFileNames.end(), naturalSorting);
+		std::sort(obj_1_rgbFileNames.begin(), obj_1_rgbFileNames.end(), naturalSorting);
+
+		for (auto const& f : obj_0_depthFileNames)
 		{
-			std::string labelName = labelsFileNames[index];
+			std::size_t obj_0_depth_index = obj_0_depthFileNames[index].find("\\") + 1;
+			std::size_t obj_1_depth_index = obj_1_depthFileNames[index].find("\\") + 1;
 
-			std::size_t index_ = labelName.find("_") + 1;
+			std::size_t obj_0_rgb_index = obj_0_rgbFileNames[index].find("\\") + 1;
+			std::size_t obj_1_rgb_index = obj_1_rgbFileNames[index].find("\\") + 1;
 
-			cv::Mat obj_0_depth_img = cv::imread(obj_0_depth + "/" + labelName.substr(index_ - 5, 4) + ".png", cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
-			cv::Mat obj_1_depth_img = cv::imread(obj_1_depth + "/" + labelName.substr(index_, 4) + ".png", cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
+			cv::Mat obj_0_depth_img = cv::imread(obj_0_depth + "/" + obj_0_depthFileNames[index].substr(obj_0_depth_index, 4) + ".png", cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
+			cv::Mat obj_1_depth_img = cv::imread(obj_1_depth + "/" + obj_1_depthFileNames[index].substr(obj_1_depth_index, 4) + ".png", cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
 
-			cv::Mat obj_0_merge_obj_1_h, obj_0_merge_obj_1_v;
-			cv::hconcat(obj_0_depth_img, obj_1_depth_img, obj_0_merge_obj_1_h);
-			cv::vconcat(obj_0_depth_img, obj_1_depth_img, obj_0_merge_obj_1_v);
+			cv::Mat obj_0_rgb_img = cv::imread(obj_0_rgb + "/" + obj_0_rgbFileNames[index].substr(obj_0_rgb_index, 4) + ".png");
+			cv::Mat obj_1_rgb_img = cv::imread(obj_1_rgb + "/" + obj_1_rgbFileNames[index].substr(obj_1_rgb_index, 4) + ".png");
 
-			std::string savePathMergeH = outputFolder + "/" + labelName.substr(index_ - 5, 4) + "_" + labelName.substr(index_, 4) + "_h.png";
-			std::string savePathMergev = outputFolder + "/" + labelName.substr(index_ - 5, 4) + "_" + labelName.substr(index_, 4) + "_v.png";
+			cv::Mat obj_0_merge_obj_1_depth_h, obj_0_merge_obj_1_depth_v;
+			cv::Mat obj_0_merge_obj_1_rgb_h, obj_0_merge_obj_1_rgb_v;
 
-			cv::imwrite(savePathMergeH, obj_0_merge_obj_1_h);
-			cv::imwrite(savePathMergev, obj_0_merge_obj_1_v);
+			cv::hconcat(obj_0_depth_img, obj_1_depth_img, obj_0_merge_obj_1_depth_h);
+			cv::hconcat(obj_0_rgb_img, obj_1_rgb_img, obj_0_merge_obj_1_rgb_h);
+
+			cv::vconcat(obj_0_depth_img, obj_1_depth_img, obj_0_merge_obj_1_depth_v);
+			cv::vconcat(obj_0_rgb_img, obj_1_rgb_img, obj_0_merge_obj_1_rgb_v);
+
+			std::string savePathMergeDepthH = outputFolder + "/depth/" + obj_0_depthFileNames[index].substr(obj_0_depth_index, 4) + "_" + obj_1_depthFileNames[index].substr(obj_1_depth_index, 4) + "_h.png";
+			std::string savePathMergeDepthV = outputFolder + "/depth/" + obj_0_depthFileNames[index].substr(obj_0_depth_index, 4) + "_" + obj_1_depthFileNames[index].substr(obj_1_depth_index, 4) + "_v.png";
+
+			std::string savePathMergeRGBH = outputFolder + "/rgb/" + obj_0_rgbFileNames[index].substr(obj_0_rgb_index, 4) + "_" + obj_1_rgbFileNames[index].substr(obj_1_rgb_index, 4) + "_h.png";
+			std::string savePathMergeRGBV = outputFolder + "/rgb/" + obj_0_rgbFileNames[index].substr(obj_0_rgb_index, 4) + "_" + obj_1_rgbFileNames[index].substr(obj_1_rgb_index, 4) + "_v.png";
+
+			cv::imwrite(savePathMergeDepthH, obj_0_merge_obj_1_depth_h);
+			cv::imwrite(savePathMergeDepthV, obj_0_merge_obj_1_depth_v);
+
+			cv::imwrite(savePathMergeRGBH, obj_0_merge_obj_1_rgb_h);
+			cv::imwrite(savePathMergeRGBV, obj_0_merge_obj_1_rgb_v);
 
 			index++;
 		}
 		std::cout << "cutPointCloudOfDetectObjects:: Execution: Concatenate depth images: Success" << std::endl;
 	}
 
-	index = 0;
-	int CUT_POINT_CLOUD_FLAG = true;
+	bool CUT_POINT_CLOUD_FLAG = true;
+
+
 	if (CUT_POINT_CLOUD_FLAG == true)
 	{
 		std::cout << "cutPointCloudOfDetectObjects:: Execution" << std::endl;
-		std::cout << "cutPointCloudOfDetectObjects:: Execution: Cut Point Cloud Of Detect Objects" << std::endl;
+		std::cout << "cutPointCloudOfDetectObjects:: Execution: Cut point cloud from bounding box" << std::endl;
 
-		cv::glob(labelsFolder, labelsFileNames);
-		cv::glob(depthFolder, depthFileNames);
+		std::size_t index = 0;
+		std::size_t count = 0;
 
-		std::sort(labelsFileNames.begin(), labelsFileNames.end(), naturalSorting);
-		std::sort(depthFileNames.begin(), depthFileNames.end(), naturalSorting);
+		cv::glob(obj_0_depth, obj_0_depthFileNames);
+		cv::glob(obj_1_depth, obj_1_depthFileNames);
+		cv::glob(boundingBox, boundingBoxFileNames);
+		cv::glob(mergeDepthImage, mergeDepthImageFileNames);
 
-		cv::Mat depth_img = cv::imread(debugFolder + "/0000_0001_h.png", cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
+		std::sort(obj_0_depthFileNames.begin(), obj_0_depthFileNames.end(), naturalSorting);
+		std::sort(obj_1_depthFileNames.begin(), obj_1_depthFileNames.end(), naturalSorting);
+		std::sort(boundingBoxFileNames.begin(), boundingBoxFileNames.end(), naturalSorting);
+		std::sort(mergeDepthImageFileNames.begin(), mergeDepthImageFileNames.end(), naturalSorting);
 
-
-		for (auto const& f : depthFileNames)
+		for (auto const& f : boundingBoxFileNames)
 		{
-			
-			cv::Mat depth_img = cv::imread(depthFileNames[index], cv::IMREAD_ANYCOLOR | cv::IMREAD_ANYDEPTH);
-
-			std::cout << labelsFileNames[index] << std::endl;
-			std::string labelPath;
-			std::for_each(labelsFileNames.begin(), labelsFileNames.end(), [&](const std::string& piece) { labelPath += piece; });
-
-			std::string checkHorizontalOrVertical = labelPath;
-			eraseSubStrings(checkHorizontalOrVertical, toErasePNG);
-
-
-			
-			
-			if (checkHorizontalOrVertical.back() == 'h')
+			std::ifstream inputBoundingBox(boundingBoxFileNames[index]);
+			double boundingBoxArr[2][5];
+			if (!inputBoundingBox.is_open())
 			{
-				cropImageHorizontalYOLOFormat(depth_img, labelPath, depth_img.size().width, depth_img.size().height);
+				std::cout << "Error opening file" << std::endl;
+			}
+			for (std::size_t r = 0; r < 2; r++)
+			{
+				for (std::size_t c = 0; c < 5; c++)
+				{
+					inputBoundingBox >> boundingBoxArr[r][c];
+				}
+			}
+
+			std::size_t indexBB = boundingBoxFileNames[index].find("\\") + 1;
+			std::string obj_0_num = boundingBoxFileNames[index].substr(indexBB, 4);
+			std::string obj_1_num = boundingBoxFileNames[index].substr(indexBB + 5, 4);
+			std::string checkHorizontalOrVertical = boundingBoxFileNames[index].substr(indexBB + 10, 1);
+
+			if (checkHorizontalOrVertical == "h")
+			{
+				for (std::size_t r = 0; r < 2; r++)
+				{
+					boundingBoxArr[r][1] *= 800;
+					boundingBoxArr[r][2] *= 400;
+					boundingBoxArr[r][3] *= 800;
+					boundingBoxArr[r][4] *= 400;
+
+					boundingBoxArr[r][1] = boundingBoxArr[r][1] - boundingBoxArr[r][3] / 2;
+					boundingBoxArr[r][2] = boundingBoxArr[r][2] - boundingBoxArr[r][4] / 2;
+					boundingBoxArr[r][3] = boundingBoxArr[r][1] + boundingBoxArr[r][3];
+					boundingBoxArr[r][4] = boundingBoxArr[r][2] + boundingBoxArr[r][4];
+
+					if (boundingBoxArr[r][0] == 0)
+					{
+						cv::Mat obj_0_depth_img = cv::imread(mergeDepthImageFileNames[index], cv::IMREAD_ANYDEPTH);
+						cv::Mat crop;
+						obj_0_depth_img(cv::Rect(boundingBoxArr[r][1], boundingBoxArr[r][2], boundingBoxArr[r][3] - boundingBoxArr[r][1], boundingBoxArr[r][4] - boundingBoxArr[r][2])).copyTo(crop);
+
+						std::string pathNum = obj_0_num;
+						std::vector<double>infoMatrix;
+						removeLeadingZeros(obj_0_num);
+						readCameraMatrix(info_obj_0, infoMatrix, obj_0_num);
+						double intrinsic[4] = { infoMatrix.at(0), infoMatrix.at(4), infoMatrix.at(2), infoMatrix.at(5) };
+
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = generatePointCloudFromDepthImage(crop, intrinsic);
+						pcl::io::savePLYFile(obj_0_depth_output + "/" + pathNum + "_h.ply", *cloud);
+						std::cout << obj_0_depth_output + "/" + pathNum + "_h.ply" << std::endl;
+					}
+					else if (boundingBoxArr[r][0] == 1)
+					{
+						cv::Mat obj_1_depth_img = cv::imread(mergeDepthImageFileNames[index], cv::IMREAD_ANYDEPTH);
+						cv::Mat crop;
+						obj_1_depth_img(cv::Rect(boundingBoxArr[r][1], boundingBoxArr[r][2], boundingBoxArr[r][3] - boundingBoxArr[r][1], boundingBoxArr[r][4] - boundingBoxArr[r][2])).copyTo(crop);
+
+						std::string pathNum = obj_1_num;
+						std::vector<double>infoMatrix;
+						removeLeadingZeros(obj_1_num);
+						readCameraMatrix(info_obj_1, infoMatrix, obj_1_num);
+						double intrinsic[4] = { infoMatrix.at(0), infoMatrix.at(4), infoMatrix.at(2), infoMatrix.at(5) };
+
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = generatePointCloudFromDepthImage(crop, intrinsic);
+						pcl::io::savePLYFile(obj_1_depth_output + "/" + pathNum + "_h.ply", *cloud);
+						std::cout << obj_1_depth_output + "/" + pathNum + "_h.ply" << std::endl;
+
+
+					}
+				}
+			}
+			else if (checkHorizontalOrVertical == "v")
+			{
+				for (std::size_t r = 0; r < 2; r++)
+				{
+					boundingBoxArr[r][1] *= 400;
+					boundingBoxArr[r][2] *= 800;
+					boundingBoxArr[r][3] *= 400;
+					boundingBoxArr[r][4] *= 800;
+
+					boundingBoxArr[r][1] = boundingBoxArr[r][1] - boundingBoxArr[r][3] / 2;
+					boundingBoxArr[r][2] = boundingBoxArr[r][2] - boundingBoxArr[r][4] / 2;
+					boundingBoxArr[r][3] = boundingBoxArr[r][1] + boundingBoxArr[r][3];
+					boundingBoxArr[r][4] = boundingBoxArr[r][2] + boundingBoxArr[r][4];
+
+					if (boundingBoxArr[r][0] == 0)
+					{
+						cv::Mat obj_0_depth_img = cv::imread(mergeDepthImageFileNames[index], cv::IMREAD_ANYDEPTH);
+						cv::Mat crop;
+						obj_0_depth_img(cv::Rect(boundingBoxArr[r][1], boundingBoxArr[r][2], boundingBoxArr[r][3] - boundingBoxArr[r][1], boundingBoxArr[r][4] - boundingBoxArr[r][2])).copyTo(crop);
+
+						std::string pathNum = obj_0_num;
+						std::vector<double>infoMatrix;
+						removeLeadingZeros(obj_0_num);
+						readCameraMatrix(info_obj_0, infoMatrix, obj_0_num);
+						double intrinsic[4] = { infoMatrix.at(0), infoMatrix.at(4), infoMatrix.at(2), infoMatrix.at(5) };
+
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = generatePointCloudFromDepthImage(crop, intrinsic);
+						pcl::io::savePLYFile(obj_0_depth_output + "/" + pathNum + "_v.ply", *cloud);
+						std::cout << obj_0_depth_output + "/" + pathNum + "_v.ply" << std::endl;
+
+
+					}
+					else if (boundingBoxArr[r][0] == 1)
+					{
+						cv::Mat obj_1_depth_img = cv::imread(mergeDepthImageFileNames[index], cv::IMREAD_ANYDEPTH);
+						cv::Mat crop;
+						obj_1_depth_img(cv::Rect(boundingBoxArr[r][1], boundingBoxArr[r][2], boundingBoxArr[r][3] - boundingBoxArr[r][1], boundingBoxArr[r][4] - boundingBoxArr[r][2])).copyTo(crop);
+
+						std::string pathNum = obj_1_num;
+						std::vector<double>infoMatrix;
+						removeLeadingZeros(obj_1_num);
+						readCameraMatrix(info_obj_1, infoMatrix, obj_1_num);
+						double intrinsic[4] = { infoMatrix.at(0), infoMatrix.at(4), infoMatrix.at(2), infoMatrix.at(5) };
+
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = generatePointCloudFromDepthImage(crop, intrinsic);
+						pcl::io::savePLYFile(obj_1_depth_output + "/" + pathNum + "_v.ply", *cloud);
+						std::cout << obj_1_depth_output + "/" + pathNum + "_v.ply" << std::endl;
+					}
+				}
 			}
 			index++;
 		}
+		std::cout << "cutPointCloudOfDetectObjects:: Execution: Cut point cloud from bounding box: Success" << std::endl;
+	}
+}
 
-		std::cout << "cutPointCloudOfDetectObjects:: Execution: Cut Point Cloud Of Detect Objects: Success" << std::endl;
+void mergePointClouds()
+{
+	std::cout << "mergePointClouds:: Initialization" << std::endl;
+
+	std::string inputFolder = "D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/mergePointClouds/Inputs";
+	std::string outputFolder = "D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/mergePointClouds/Outputs";
+	std::string debugFolder = "D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/mergePointClouds/Debugs";
+
+	std::string obj_0_folder = inputFolder + "/0/*.ply";
+	std::string obj_1_folder = inputFolder + "/1/*.ply";
+
+	std::string obj_0_info_file = inputFolder + "/obj_0_info/info.yml";
+	std::string obj_1_info_file = inputFolder + "/obj_1_info/info.yml";
+
+	std::string obj_0_gt_file = inputFolder + "/obj_0_info/gt.yml";
+	std::string obj_1_gt_file = inputFolder + "/obj_1_info/gt.yml";
+
+	std::vector<std::string> obj_0_fileNames;
+	std::vector<std::string> obj_1_fileNames;
+
+	std::size_t index = 0;
+
+	std::cout << "mergePointClouds:: Execution" << std::endl;
+	cv::glob(obj_0_folder, obj_0_fileNames);
+	cv::glob(obj_1_folder, obj_1_fileNames);
+
+	std::sort(obj_0_fileNames.begin(), obj_0_fileNames.end(), naturalSorting);
+	std::sort(obj_1_fileNames.begin(), obj_1_fileNames.end(), naturalSorting);
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr mergePointCloud_obj_0_h(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr mergePointCloud_obj_1_h(new pcl::PointCloud<pcl::PointXYZ>);
+
+
+	for (auto const& f : obj_0_fileNames)
+	{
+
+		std::size_t indexBB = obj_0_fileNames[index].find("\\") + 1;
+		std::string obj_0_num = obj_0_fileNames[index].substr(indexBB, 4);
+		std::string checkHorizontalOrVertical = obj_0_fileNames[index].substr(indexBB + 5, 1);
+
+		if (checkHorizontalOrVertical == "h")
+		{
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
+			pcl::PointCloud<pcl::PointXYZ>::Ptr result_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+			pcl::io::loadPLYFile(obj_0_fileNames[index], *cloud);
+
+			pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+			pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+
+			pcl::SACSegmentation<pcl::PointXYZ> seg;
+			seg.setOptimizeCoefficients(true);
+			seg.setModelType(pcl::SACMODEL_PLANE); 
+			seg.setMethodType(pcl::SAC_RANSAC); 
+			seg.setDistanceThreshold(0.1);
+			seg.setInputCloud(cloud);
+			seg.segment(*inliers, *coefficients);
+			pcl::copyPointCloud(*cloud, *inliers, *result_cloud);
+
+			Eigen::Matrix4f transformMat;
+			std::string pathNum = obj_0_num;
+			removeLeadingZeros(obj_0_num);
+			YAML::Node obj_0_gt = YAML::LoadFile(obj_0_gt_file);
+			for (auto f : obj_0_gt[obj_0_num])
+			{
+				transformMat << f["cam_R_m2c"][0].as<double>(), f["cam_R_m2c"][1].as<double>(), f["cam_R_m2c"][2].as<double>(), f["cam_t_m2c"][0].as<double>(),
+					f["cam_R_m2c"][3].as<double>(), f["cam_R_m2c"][4].as<double>(), f["cam_R_m2c"][5].as<double>(), f["cam_t_m2c"][1].as<double>(),
+					f["cam_R_m2c"][6].as<double>(), f["cam_R_m2c"][7].as<double>(), f["cam_R_m2c"][8].as<double>(), f["cam_t_m2c"][2].as<double>(),
+					0, 0, 0, 1;
+			}
+
+			std::cout << transformMat << std::endl;
+			pcl::PointCloud<pcl::PointXYZ>::Ptr transformedPointCloud(new pcl::PointCloud<pcl::PointXYZ>);
+			pcl::transformPointCloud(*result_cloud, *transformedPointCloud, transformMat.inverse());
+			
+			*mergePointCloud_obj_0_h += *transformedPointCloud;
+			std::cout << outputFolder + "/" + obj_0_num + ".ply" << std::endl;
+		}
+		else if (checkHorizontalOrVertical == "v")
+		{
+			/*pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
+			pcl::io::loadPLYFile(obj_0_fileNames[index], *cloud);*/
+		}
+
+		index++;
 	}
 
-	
+	pcl::io::savePLYFile(outputFolder + "/pc_0_h.ply", *mergePointCloud_obj_0_h);
 
-	std::cout << "cutPointCloudOfDetectObjects:: Finalization" << std::endl;
+	std::cout << "mergePointClouds:: Execution: Success" << std::endl;
+	std::cout << "mergePointClouds:: Finalization" << std::endl;
 
 }
 
