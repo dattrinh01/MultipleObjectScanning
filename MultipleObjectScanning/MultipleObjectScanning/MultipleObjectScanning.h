@@ -25,6 +25,7 @@
 #include <pcl/io/ply_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/crop_box.h>
 
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -33,8 +34,8 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/ModelCoefficients.h>
-
-
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/passthrough.h>
 
 /*--------------SUPPORT FUNCTIONS-----------------------*/
 inline bool naturalSorting(const std::string& a, const std::string& b)
@@ -74,7 +75,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr createPointCloud(cv::Mat depth_img, const do
 bool checkSubString(std::string mainString, std::string checkString);
 void extractBoundingBoxFromMaskImage(cv::Mat mask_img, double& bbX, double& bbY, double& bbWidth, double& bbHeight);
 pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat depth_img, const double depth_intrinsic[4]);
-void cropAndCreatePointCloud(std::string boundingBoxPath, std::string depthPath, std::string outputPath);
+void cropTheObjectFromDepthImage(cv::Mat& depth_img, double boundingBox[4]);
 
 pcl::PointCloud<pcl::PointXYZ> convertEigenMatrixXdToPCLCloud(const Eigen::MatrixXd& inputMatrix);
 Eigen::MatrixXd convertPCLCloudToEigenMatrixXd(const pcl::PointCloud<pcl::PointXYZ>::Ptr& inputCloud);
@@ -84,7 +85,6 @@ void transformPointCloudToOriginal(pcl::PointCloud<pcl::PointXYZ>::Ptr& inCloud,
 void readCameraMatrix(std::string infoYMLFilePath, std::vector<float>& infoMatrix, std::string obj_name);
 void configBoundingBox(std::string gtFilePath, std::vector<double>& boundingBoxVec, std::string obj_name, int className);
 void removeLeadingZeros(std::string& str);
-void cropImageHorizontalYOLOFormat(cv::Mat& originalDepthImage, cv::Mat& cropDepthImage, std::string boundingBoxPath, int width, int height);
 /*--------------MAIN PROCESSING FUNCTION----------------*/
 void datasetGeneration();
 void detectMultipleObjects();
@@ -92,6 +92,8 @@ void cutPointCloudOfDetectObjects();
 void mergePointClouds();
 void meshPointClouds();
 void evaluationPointClouds();
+
+void test_func();
 /*--------------MAIN FUNCTIONS--------------------------*/
 void mainFunction();
 

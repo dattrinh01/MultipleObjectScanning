@@ -1,7 +1,7 @@
 ﻿  MultipleObjectScanning.cpp
   Generating code
-  780 of 2124 functions (36.7%) were compiled, the rest were copied from previous compilation.
+  2538 of 2793 functions (90.9%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    79 functions had inline decision re-evaluated but remain unchanged
+    42 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   MultipleObjectScanning.vcxproj -> D:\DATA\Research\DrNhu\MultipleObjectScanning\MultipleObjectScanning\x64\Release\MultipleObjectScanning.exe
