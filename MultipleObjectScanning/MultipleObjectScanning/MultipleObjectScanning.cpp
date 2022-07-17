@@ -51,14 +51,14 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat dep
 	double cy = depth_intrinsic[3];
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	for (int x = 0; x < depth_img.rows; x++) {
-		for (int y = 0; y < depth_img.cols; y++) {
+	for (int y = 0; y < depth_img.rows; y++) {
+		for (int x = 0; x < depth_img.cols; x++) {
 			pcl::PointXYZ p;
-			ushort depth_val = depth_img.ptr<ushort>(x)[y];
+			ushort depth_val = depth_img.ptr<ushort>(y)[x];
 			if (depth_val == 0) { continue; }
 			p.z = depth_val * 0.1;
-			p.x = (y - cx) * p.z / fx;
-			p.y = (x - cy) * p.z / fy;
+			p.x = (x - cx) * p.z / fx;
+			p.y = (y - cy) * p.z / fy;
 			cloud->points.push_back(p);
 		}
 	}
@@ -67,15 +67,13 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat dep
 
 void cropTheObjectFromDepthImage(cv::Mat& depth_img, double boundingBox[4])
 {
-	for (int x = 0; x < depth_img.rows; x++) {
-		for (int y = 0; y < depth_img.cols; y++) {
+	for (int y = 0; y < depth_img.rows; y++) {
+		for (int x = 0; y < depth_img.cols; x++) {
 
-			if (!(x >= boundingBox[1] && x <= boundingBox[3] && y >= boundingBox[0] && y <= boundingBox[2]))
+			if (!(y >= boundingBox[1] && y <= boundingBox[3] && x >= boundingBox[0] && x <= boundingBox[2]))
 			{
-				depth_img.ptr<ushort>(x)[y] = 0;
-
+				depth_img.ptr<ushort>(y)[x] = 0;
 			}
-
 		}
 	}
 }
@@ -687,7 +685,7 @@ void mergePointClouds()
 
 void test_func()
 {
-	double intrinsic_0[4] = { 1075.65091572 , 1073.90347929 ,213.06888344, 175.72159802 };
+	/*double intrinsic_0[4] = { 1075.65091572 , 1073.90347929 ,213.06888344, 175.72159802 };
 	double intrinsic_1[4] = { 1075.65091572 , 1073.90347929 ,171.72159802, 175.72159802 };
 	double boundingBox_0[4] = { 100, 140, 300, 270 };
 	double boundingBox_1[4] = { 95, 130, 300, 274 };
@@ -709,26 +707,111 @@ void test_func()
 				depth_0.ptr<ushort>(x)[y] = 0;
 
 			}
-
-			if (depth_0.ptr<ushort>(x)[y] < 600)
-			{
-				depth_0.ptr<ushort>(x)[y] = 0;
-			}
 		}
+	}*/
+
+
+
+	pcl::PLYReader reader;
+	pcl::PassThrough<pcl::PointXYZ> pass;
+	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
+	pcl::PCDWriter writer;
+	pcl::ExtractIndices<pcl::PointXYZ> extract;
+	pcl::ExtractIndices<pcl::Normal> extract_normals;
+	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered2(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals2(new pcl::PointCloud<pcl::Normal>);
+	pcl::ModelCoefficients::Ptr coefficients_plane(new pcl::ModelCoefficients), coefficients_cylinder(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_plane(new pcl::PointIndices), inliers_cylinder(new pcl::PointIndices);
+
+	reader.read("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Inputs/0000_h.ply", *cloud);
+	std::cerr << "PointCloud has: " << cloud->size() << " data points." << std::endl;
+
+	pass.setInputCloud(cloud);
+	pass.setFilterFieldName("z");
+	pass.setFilterLimits(0, 1.5);
+	pass.filter(*cloud_filtered);
+	std::cerr << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
+
+	ne.setSearchMethod(tree);
+	ne.setInputCloud(cloud_filtered);
+	ne.setKSearch(50);
+	ne.compute(*cloud_normals);
+
+
+	seg.setOptimizeCoefficients(true);
+	seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
+	seg.setNormalDistanceWeight(0.1);
+	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setMaxIterations(100);
+	seg.setDistanceThreshold(0.03);
+	seg.setInputCloud(cloud_filtered);
+	seg.setInputNormals(cloud_normals);
+	// Obtain the plane inliers and coefficients
+	seg.segment(*inliers_plane, *coefficients_plane);
+	std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
+
+	extract.setInputCloud(cloud_filtered);
+	extract.setIndices(inliers_plane);
+	extract.setNegative(false);
+
+	// Write the planar inliers to disk
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
+	extract.filter(*cloud_plane);
+	std::cerr << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
+	writer.write("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/table_scene_mug_stereo_textured_plane.ply", *cloud_plane, false);
+
+	// Remove the planar inliers, extract the rest
+	extract.setNegative(true);
+	extract.filter(*cloud_filtered2);
+	extract_normals.setNegative(true);
+	extract_normals.setInputCloud(cloud_normals);
+	extract_normals.setIndices(inliers_plane);
+	extract_normals.filter(*cloud_normals2);
+
+	// Create the segmentation object for cylinder segmentation and set all the parameters
+	seg.setOptimizeCoefficients(true);
+	seg.setModelType(pcl::SACMODEL_CYLINDER);
+	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setNormalDistanceWeight(0.1);
+	seg.setMaxIterations(10000);
+	seg.setDistanceThreshold(0.05);
+	seg.setRadiusLimits(0, 0.1);
+	seg.setInputCloud(cloud_filtered2);
+	seg.setInputNormals(cloud_normals2);
+
+	// Obtain the cylinder inliers and coefficients
+	seg.segment(*inliers_cylinder, *coefficients_cylinder);
+	std::cerr << "Cylinder coefficients: " << *coefficients_cylinder << std::endl;
+
+	// Write the cylinder inliers to disk
+	extract.setInputCloud(cloud_filtered2);
+	extract.setIndices(inliers_cylinder);
+	extract.setNegative(false);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cylinder(new pcl::PointCloud<pcl::PointXYZ>());
+	extract.filter(*cloud_cylinder);
+	if (cloud_cylinder->points.empty())
+		std::cerr << "Can't find the cylindrical component." << std::endl;
+	else
+	{
+		std::cerr << "PointCloud representing the cylindrical component: " << cloud_cylinder->size() << " data points." << std::endl;
+		writer.write("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/table_scene_mug_stereo_textured_cylinder.ply", *cloud_cylinder, false);
 	}
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = generatePointCloudFromDepthImage(depth_0, intrinsic_0);
-	pcl::io::savePLYFile("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Outputs/depth_0_filter.ply", *cloud);
-
-	cv::imwrite("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Outputs/depth_0_filter.png", depth_0);
-
 }
+
 
 /*--------------MAIN FUNCTIONS--------------------------*/
 void mainFunction()
 {
 	std::cout << "mainFunction:: Initialization" << std::endl;
 	std::cout << "mainFunction:: Execution" << std::endl;
-	mergePointClouds();
+	test_func();
 	std::cout << "mainFunction:: Finalization" << std::endl;
 }

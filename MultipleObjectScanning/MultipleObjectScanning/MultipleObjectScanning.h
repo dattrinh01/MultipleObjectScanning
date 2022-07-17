@@ -25,17 +25,18 @@
 #include <pcl/io/ply_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/crop_box.h>
 
+
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 
-#include <pcl/filters/extract_indices.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl/filters/passthrough.h>
 
 /*--------------SUPPORT FUNCTIONS-----------------------*/
 inline bool naturalSorting(const std::string& a, const std::string& b)
