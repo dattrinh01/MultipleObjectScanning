@@ -68,7 +68,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr generatePointCloudFromDepthImage(cv::Mat dep
 void cropTheObjectFromDepthImage(cv::Mat& depth_img, double boundingBox[4])
 {
 	for (int y = 0; y < depth_img.rows; y++) {
-		for (int x = 0; y < depth_img.cols; x++) {
+		for (int x = 0; x < depth_img.cols; x++) {
 
 			if (!(y >= boundingBox[1] && y <= boundingBox[3] && x >= boundingBox[0] && x <= boundingBox[2]))
 			{
@@ -685,125 +685,6 @@ void mergePointClouds()
 
 void test_func()
 {
-	/*double intrinsic_0[4] = { 1075.65091572 , 1073.90347929 ,213.06888344, 175.72159802 };
-	double intrinsic_1[4] = { 1075.65091572 , 1073.90347929 ,171.72159802, 175.72159802 };
-	double boundingBox_0[4] = { 100, 140, 300, 270 };
-	double boundingBox_1[4] = { 95, 130, 300, 274 };
-
-	Eigen::Matrix4f transform_0;
-	Eigen::Matrix4f transform_1;
-
-	transform_0 << 0.99978957, 0.01971206, -0.00566635, -7.34830894, 0.01885930, -0.99212728, -0.12380646, 13.93064806, -0.00806225, 0.12367446, -0.99228976, 628.08193448, 0, 0, 0, 1;
-	transform_1 << 0.99689798, 0.07814465, 0.00934223, -7.45212185, -0.07870095, 0.99003960, 0.11673884, 16.40548422, -0.00012667, -0.11711129, 0.99311935, 628.60539089, 0, 0, 0, 1;
-
-	cv::Mat depth_0 = cv::imread("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Inputs/0000.png", cv::IMREAD_ANYDEPTH);
-	cv::Mat depth_1 = cv::imread("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Inputs/1295.png", cv::IMREAD_ANYDEPTH);
-
-	for (int x = 0; x < depth_0.rows; x++) {
-		for (int y = 0; y < depth_0.cols; y++) {
-
-			if (!(x >= 140 && x <= 270 && y >= 100 && y <= 300))
-			{
-				depth_0.ptr<ushort>(x)[y] = 0;
-
-			}
-		}
-	}*/
-
-
-
-	pcl::PLYReader reader;
-	pcl::PassThrough<pcl::PointXYZ> pass;
-	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
-	pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
-	pcl::PCDWriter writer;
-	pcl::ExtractIndices<pcl::PointXYZ> extract;
-	pcl::ExtractIndices<pcl::Normal> extract_normals;
-	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
-
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered2(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals2(new pcl::PointCloud<pcl::Normal>);
-	pcl::ModelCoefficients::Ptr coefficients_plane(new pcl::ModelCoefficients), coefficients_cylinder(new pcl::ModelCoefficients);
-	pcl::PointIndices::Ptr inliers_plane(new pcl::PointIndices), inliers_cylinder(new pcl::PointIndices);
-
-	reader.read("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/Inputs/0000_h.ply", *cloud);
-	std::cerr << "PointCloud has: " << cloud->size() << " data points." << std::endl;
-
-	pass.setInputCloud(cloud);
-	pass.setFilterFieldName("z");
-	pass.setFilterLimits(0, 1.5);
-	pass.filter(*cloud_filtered);
-	std::cerr << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
-
-	ne.setSearchMethod(tree);
-	ne.setInputCloud(cloud_filtered);
-	ne.setKSearch(50);
-	ne.compute(*cloud_normals);
-
-
-	seg.setOptimizeCoefficients(true);
-	seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
-	seg.setNormalDistanceWeight(0.1);
-	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.03);
-	seg.setInputCloud(cloud_filtered);
-	seg.setInputNormals(cloud_normals);
-	// Obtain the plane inliers and coefficients
-	seg.segment(*inliers_plane, *coefficients_plane);
-	std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
-
-	extract.setInputCloud(cloud_filtered);
-	extract.setIndices(inliers_plane);
-	extract.setNegative(false);
-
-	// Write the planar inliers to disk
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
-	extract.filter(*cloud_plane);
-	std::cerr << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
-	writer.write("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/table_scene_mug_stereo_textured_plane.ply", *cloud_plane, false);
-
-	// Remove the planar inliers, extract the rest
-	extract.setNegative(true);
-	extract.filter(*cloud_filtered2);
-	extract_normals.setNegative(true);
-	extract_normals.setInputCloud(cloud_normals);
-	extract_normals.setIndices(inliers_plane);
-	extract_normals.filter(*cloud_normals2);
-
-	// Create the segmentation object for cylinder segmentation and set all the parameters
-	seg.setOptimizeCoefficients(true);
-	seg.setModelType(pcl::SACMODEL_CYLINDER);
-	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setNormalDistanceWeight(0.1);
-	seg.setMaxIterations(10000);
-	seg.setDistanceThreshold(0.05);
-	seg.setRadiusLimits(0, 0.1);
-	seg.setInputCloud(cloud_filtered2);
-	seg.setInputNormals(cloud_normals2);
-
-	// Obtain the cylinder inliers and coefficients
-	seg.segment(*inliers_cylinder, *coefficients_cylinder);
-	std::cerr << "Cylinder coefficients: " << *coefficients_cylinder << std::endl;
-
-	// Write the cylinder inliers to disk
-	extract.setInputCloud(cloud_filtered2);
-	extract.setIndices(inliers_cylinder);
-	extract.setNegative(false);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cylinder(new pcl::PointCloud<pcl::PointXYZ>());
-	extract.filter(*cloud_cylinder);
-	if (cloud_cylinder->points.empty())
-		std::cerr << "Can't find the cylindrical component." << std::endl;
-	else
-	{
-		std::cerr << "PointCloud representing the cylindrical component: " << cloud_cylinder->size() << " data points." << std::endl;
-		writer.write("D:/DATA/Research/DrNhu/MultipleObjectScanningDatasets/test_func/table_scene_mug_stereo_textured_cylinder.ply", *cloud_cylinder, false);
-	}
-
 }
 
 
